@@ -1,5 +1,4 @@
 # Ignore everything in this directory
-../test
+../balanced
 # Except this file
-!.gitignore
-!/*
+!*.gitignore
