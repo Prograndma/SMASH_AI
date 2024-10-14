@@ -21,7 +21,7 @@ NUM_CONTROLLER_OUTPUTS = 18             # There are 18 outputs in a normal contr
 NUM_CONTROLLER_SUBTRACTING = 0          # We might remove some buttons to simplify. (dpad, l&r pressure, maybe y)
 
 WHAT_WE_WORKING_ON = "balanced"
-WHICH_GAME = "kart"
+WHICH_GAME = "smash"
 
 if WHICH_GAME == "smash":
     dataset_name = "smash"
