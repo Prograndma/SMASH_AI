@@ -1,12 +1,11 @@
 import argparse
 import torch
 from datasets import load_dataset, load_from_disk
-from transformers import ViTImageProcessor
 from datasets import DatasetDict
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from custom_vit_regressor import CustomViTRegressor
 import numpy as np
-from transformers import ViTModel
 import torch.optim as optim
 import os
 import time
@@ -20,8 +19,12 @@ THRESHOLD = 50
 NUM_CONTROLLER_OUTPUTS = 18             # There are 18 outputs in a normal controller
 NUM_CONTROLLER_SUBTRACTING = 0          # We might remove some buttons to simplify. (dpad, l&r pressure, maybe y)
 
-WHAT_WE_WORKING_ON = "balanced"
+DATASET_TYPE = "balanced"
+# DATASET_TYPE = "full"
+# DATASET_TYPE = "medium"
+# DATASET_TYPE = "little"
 WHICH_GAME = "smash"
+# WHICH_GAME = "kart"
 
 if WHICH_GAME == "smash":
     dataset_name = "smash"
@@ -30,9 +33,9 @@ elif WHICH_GAME == "kart":
 else:
     raise Exception("Choose a valid game")
 
-VIT_BASE_DIR = f"{WORKING_DIR}/vit/{WHICH_GAME}/{WHAT_WE_WORKING_ON}"
+VIT_BASE_DIR = f"{WORKING_DIR}/vit/{WHICH_GAME}/{DATASET_TYPE}"
 VIT_BASE_FILENAME = f"{VIT_BASE_DIR}/checkpoints"
-SAVE_PATH_DATASET = f"{WORKING_DIR}/dataset/{WHICH_GAME}/{WHAT_WE_WORKING_ON}"
+SAVE_PATH_DATASET = f"{WORKING_DIR}/dataset/{WHICH_GAME}/{DATASET_TYPE}"
 
 if WHICH_GAME == "smash":
     dataset_name = "smash"
@@ -41,11 +44,11 @@ elif WHICH_GAME == "kart":
 else:
     raise Exception("Choose a valid game")
 
-if WHAT_WE_WORKING_ON == "full":
+if DATASET_TYPE == "full":
     HUGGING_FACE_DATASET_KEY = f"tomc43841/public_{dataset_name}_full_dataset"
-elif WHAT_WE_WORKING_ON == "balanced":
+elif DATASET_TYPE == "balanced":
     HUGGING_FACE_DATASET_KEY = f"tomc43841/public_{dataset_name}_balanced_dataset"
-elif WHAT_WE_WORKING_ON == "medium":
+elif DATASET_TYPE == "medium":
     HUGGING_FACE_DATASET_KEY = f"tomc43841/public_{dataset_name}_medium_dataset"
 else:
     HUGGING_FACE_DATASET_KEY = f"tomc43841/public_{dataset_name}_little_dataset"
@@ -55,44 +58,6 @@ EPOCH_FILE = f"{VIT_BASE_DIR}/epochs.txt"
 LOSSES_FILE = f"{VIT_BASE_DIR}/train_losses.txt"
 VALIDATION_LOSSES_FILE = f"{VIT_BASE_DIR}/val_losses.txt"
 TEST_LOSS_FILE = f"{VIT_BASE_DIR}/test_losses.txt"
-HUGGING_FACE_PRETRAINED_VIT = "google/vit-base-patch16-224-in21k"
-# HUGGING_FACE_PRETRAINED_VIT_PROCESSOR = "google/vit-base-patch16-224"
-
-
-class CustomViTRegressor(nn.Module):
-    def __init__(self, should_load_from_disk=True, base_filename=VIT_BASE_FILENAME, base_dir=VIT_BASE_DIR):
-        super(CustomViTRegressor, self).__init__()
-        if should_load_from_disk:
-            self.base_model = ViTModel.from_pretrained(f"{base_filename}/pretrained")
-        else:
-            self.base_model = ViTModel.from_pretrained(HUGGING_FACE_PRETRAINED_VIT)
-            self.base_model.save_pretrained(f"{base_filename}/pretrained")
-        linear_size = self.base_model.config.hidden_size
-        self.regressor = nn.Linear(linear_size, (NUM_CONTROLLER_OUTPUTS - NUM_CONTROLLER_SUBTRACTING))
-        self.base_filename = base_filename
-        self.base_dir = base_dir
-
-    def forward(self, x):
-        features = self.base_model(x)
-        predictions = self.regressor(features.pooler_output)
-        return predictions
-
-    def saved_model_exists(self, checkpoint):
-        if not os.path.exists(f"{self.base_filename}/{checkpoint}"):
-            return False
-        return True
-
-    def update_model_from_checkpoint(self, name):
-        if not self.saved_model_exists(name):
-            return "no saved model exists"
-
-        path = f"{self.base_filename}/{name}"
-
-        loaded = torch.load(path)
-        return self.load_state_dict(loaded)
-
-    def save(self, epoch):
-        torch.save(self.state_dict(), f"{self.base_filename}/newloss_{epoch}")
 
 
 def parse_args():
@@ -125,19 +90,27 @@ def parse_args():
 
 
 def train_test_valid_split(dataset, valid_percent, test_percent, seed=42):
+    # This is important! There should not be any amount of randomizing when splitting the dataset! That is because
+    # there is likely a high amount of data correlation between frames that are close to each other. For example,
+    # imagine I am holding a button for 10 frames straight, the images are probably very similar and the desired model
+    # output is identical. If one of those frames appears in the training, another in validation and another still in
+    # the testing set that is testing the model on things that are incredibly similar to it's training data.
+
+
     # Split once into train and (valid and test)
 
-    train_test_valid = dataset.train_test_split(test_size=valid_percent + test_percent, seed=seed)
+    train_test_valid = dataset.train_test_split(test_size=valid_percent + test_percent, seed=seed, shuffle=False)
 
     # Split (valid and test) into train and test - call the train of this part validation
     new_test_size = test_percent / (valid_percent + test_percent)
-    test_valid = train_test_valid['test'].train_test_split(test_size=new_test_size, seed=seed)
+    test_valid = train_test_valid['test'].train_test_split(test_size=new_test_size, seed=seed, shuffle=False)
 
     # gather all the pieces to have a single DatasetDict
+    # It is now appropriate to shuffle the datasets.
     train_test_valid_dataset = DatasetDict({
-        'train': train_test_valid['train'],
-        'validation': test_valid['train'],
-        'test': test_valid['test'],
+        'train': train_test_valid['train'].shuffle(seed=seed),
+        'validation': test_valid['train'].shuffle(seed=seed),
+        'test': test_valid['test'].shuffle(seed=seed),
         })
     return train_test_valid_dataset
 
@@ -248,36 +221,6 @@ def _train(model,
             f.write(str(val_loss) + "\n")
 
 
-def custom_data_collator_function(processor):
-    def return_func(batch):
-        images = [item["image"] for item in batch]
-
-        inputs = processor(images, return_tensors="pt")
-        targets = torch.tensor([[
-            item["Start"],
-            item["A"],
-            item["B"],
-            item["X"],
-            item["Y"],
-            item["Z"],
-            item["DPadUp"],
-            item["DPadDown"],
-            item["DPadLeft"],
-            item["DPadRight"],
-            item["L"],
-            item["R"],
-            item["LPressure"] / 255,
-            item["RPressure"] / 255,
-            item["XAxis"] / 255,
-            item["YAxis"] / 255,
-            item["CXAxis"] / 255,
-            item["CYAxis"] / 255] for item in batch], dtype=torch.float32)
-
-        return inputs, targets
-
-    return return_func
-
-
 def is_interesting_target(target):
     if target[0] == 1 or \
             target[1] == 1 or \
@@ -318,16 +261,16 @@ def _infer(model, test_loader, objective, device='cuda'):
 def main(args):
     if os.path.isdir(f"{SAVE_PATH_DATASET}/train"):
         dataset = load_from_disk(SAVE_PATH_DATASET)
-        model = CustomViTRegressor()
+        model = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME)
     else:
         dataset = load_dataset(HUGGING_FACE_DATASET_KEY)
         dataset = train_test_valid_split(dataset['train'], .15, .15)
         dataset.save_to_disk(SAVE_PATH_DATASET)
-        _ = CustomViTRegressor(should_load_from_disk=False)
+        _ = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME, should_load_from_disk=False)
         return
     device = "cuda"
 
-    custom_data_collator = custom_data_collator_function(ViTImageProcessor())
+    custom_data_collator = CustomViTRegressor.custom_data_collator_function()
 
     train_loader = DataLoader(dataset["train"], batch_size=BATCH_SIZE, collate_fn=custom_data_collator)
     val_loader = DataLoader(dataset["validation"], batch_size=BATCH_SIZE, collate_fn=custom_data_collator)
