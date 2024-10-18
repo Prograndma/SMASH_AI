@@ -49,8 +49,8 @@ class CustomViTRegressor(nn.Module):
     def custom_data_collator_function():
         def return_func(batch):
             images = [item["image"] for item in batch]
-
-            inputs = ViTImageProcessor(images, return_tensors="pt")
+            temp_processor = ViTImageProcessor()
+            inputs = temp_processor(images, return_tensors="pt")
             targets = torch.tensor([[
                 item["Start"],
                 item["A"],
