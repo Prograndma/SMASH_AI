@@ -205,8 +205,10 @@ def _train(model,
         loss_values.append((total_epochs, np.mean(batch_losses)))
 
         with open(f"{LOSSES_FILE}", "a+") as f:
-            for loss in loss_values:
-                f.write(str(loss) + "\n")
+            loss = loss_values[-1]
+            f.write(str(loss) + "\n")
+            # for loss in loss_values:
+            #     f.write(str(loss) + "\n")
 
         with open(f"{VALIDATION_LOSSES_FILE}", "w") as f:
             val_loss = validation_loss_values[-1]
