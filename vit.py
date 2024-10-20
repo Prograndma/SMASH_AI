@@ -33,7 +33,7 @@ elif WHICH_GAME == "kart":
 else:
     raise Exception("Choose a valid game")
 
-VIT_BASE_DIR = f"{WORKING_DIR}/vit/{WHICH_GAME}/{DATASET_TYPE}"
+VIT_BASE_DIR = f"{WORKING_DIR}/vit/{WHICH_GAME}/{DATASET_TYPE}_no_shuffle_mse_loss"
 VIT_BASE_FILENAME = f"{VIT_BASE_DIR}/checkpoints"
 SAVE_PATH_DATASET = f"{WORKING_DIR}/dataset/{WHICH_GAME}/{DATASET_TYPE}"
 
@@ -65,7 +65,7 @@ def parse_args():
     parser.add_argument(
         "--max_train_steps",
         type=int,
-        default=3,
+        default=20,
         help="Total number of training steps to perform.  If provided, overrides num_train_epochs.",
     )
     parser.add_argument(
@@ -140,7 +140,7 @@ def _train(model,
     vl = []
     for epoch in range(num_epochs_to_train):
         # GETTING EPOCH NUMBER
-        if not os.path.isdir(EPOCH_FILE):
+        if not os.path.isfile(EPOCH_FILE):
             with open(f"{EPOCH_FILE}", "w") as f:
                 f.write("0\n")
         else:
@@ -148,10 +148,12 @@ def _train(model,
                 for line in f:
                     total_epochs = int(line.strip())
                     break
+                model.update_model_from_checkpoint(f"{total_epochs - 1}")
+                print(f"LOADED MODEL FROM CHECKPOINT {total_epochs - 1}")
 
         # DO AN EPOCH
         batch_losses = []
-        print("DOING AN EPOCH")
+        print(f"DOING EPOCH {total_epochs}")
         model.train()
         for batch, (x, y_truth) in enumerate(train_loader):  # learn
             if total_batches == 1:  # or total_batches == 2 or total_batches == 10:
@@ -207,8 +209,10 @@ def _train(model,
                 f.write(str(loss) + "\n")
 
         with open(f"{VALIDATION_LOSSES_FILE}", "w") as f:
-            for val_loss in validation_loss_values:
-                f.write(str(val_loss) + "\n")
+            val_loss = validation_loss_values[-1]
+            f.write(str(val_loss) + "\n")
+            # for val_loss in validation_loss_values:
+            #     f.write(str(val_loss) + "\n")
 
     with torch.no_grad():
         for batch_index, (x_v, y_v) in enumerate(val_loader):
@@ -261,7 +265,11 @@ def _infer(model, test_loader, objective, device='cuda'):
 def main(args):
     if os.path.isdir(f"{SAVE_PATH_DATASET}/train"):
         dataset = load_from_disk(SAVE_PATH_DATASET)
-        model = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME)
+        try:
+            model = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME)
+        except OSError:
+            model = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME, should_load_from_disk=False)
+
     else:
         dataset = load_dataset(HUGGING_FACE_DATASET_KEY)
         dataset = train_test_valid_split(dataset['train'], .15, .15)
@@ -281,11 +289,12 @@ def main(args):
     losses = []
     val_losses = []
 
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=1e-6)
 
-    # objective = torch.nn.MSELoss()
+    objective = torch.nn.MSELoss()
     # objective = torch.nn.CrossEntropyLoss()
-    objective = CombinedLoss()
+    # TODO: Is the issues with the Nan loss values due to this?
+    # objective = CombinedLoss()
 
     _train(model, args.max_train_steps, losses, val_losses, train_loader,
            val_loader, optimizer, objective, device=device)
