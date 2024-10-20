@@ -6,7 +6,10 @@ from torchvision.models import VGG
 from torchvision import transforms
 from transformers import ViTImageProcessor
 from torch.utils.data import DataLoader
-from vit import CustomViTRegressor, custom_data_collator_function
+
+from custom_image_processor import CustomImageProcessor
+from custom_vit_regressor import CustomViTRegressor
+
 
 WORKING_DIR = "/home/thomas/PycharmProjects/SMASH_AI"
 WHAT_WE_WORKING_ON = "balanced"
@@ -42,14 +45,14 @@ def main(model, dataloader):
 
 if __name__ == "__main__":
     dataset = load_from_disk(SAVE_PATH_DATASET)
-    custom_data_collator = custom_data_collator_function(ViTImageProcessor())
+    custom_data_collator = CustomViTRegressor.custom_data_collator_function()
 
     val_loader = DataLoader(dataset["validation"], batch_size=BATCH_SIZE, collate_fn=custom_data_collator)
 
     device = 'cuda'
 
-    model = CustomViTRegressor()
-    model.update_model_from_checkpoint("newloss_0")
-    model.update_model_from_checkpoint("13")
+    model = CustomViTRegressor(base_dir=None, base_filename=None)
+    # model.update_model_from_checkpoint("newloss_0")
+    model.update_model_from_checkpoint("6")
     model.to(device)
     main(model, val_loader)
