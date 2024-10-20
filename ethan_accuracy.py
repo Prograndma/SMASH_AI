@@ -2,13 +2,14 @@ from datasets import load_from_disk
 import torch
 from transformers import ViTImageProcessor
 from torch.utils.data import DataLoader
-from vit import CustomViTRegressor, custom_data_collator_function
+from custom_vit_regressor import CustomViTRegressor
+import time
 from vgg import CustomSimpleImageRegressor
 from vgg import custom_data_collator_function as vgg_collator
 from custom_image_processor import CustomImageProcessor
 
 WORKING_DIR = "/home/thomas/PycharmProjects/SMASH_AI"
-WHAT_WE_WORKING_ON = "balanced"
+WHAT_WE_WORKING_ON = "smash/balanced"
 SAVE_PATH_DATASET = f"{WORKING_DIR}/dataset/{WHAT_WE_WORKING_ON}"
 
 BATCH_SIZE = 1
@@ -105,49 +106,56 @@ def acc_check(model, dataloader, threshold):
     return bin_true_acc, binary_accuracies, in_range, recalls, precisions
 
 
-def main(model, data_loader):
-    # threshes = [.1, .11, .12, .13, .14, .15]
-    threshes = [.14]
+def main(model, data_loader, name=None):
+    threshes = [.05, .1, .11, .12, .13, .14, .15, .20, .25, .30, .35]
+    # threshes = [.14]
+    print("Epochs Trained, Threshold, Recall, Precision")
     for threshold in threshes:
         bin_acc_true, bin_acc, in_range, recalls, precisions = acc_check(model, data_loader, threshold)
-        print(f"FOR A THRESHOLD OF {threshold}")
+        print(f"{i}, {threshold}, {sum(recalls) / len(recalls)}, {sum(precisions) / len(precisions)}")
+        # print(f"FOR A THRESHOLD OF {threshold}")
         # print(sum(bin_acc) / len(bin_acc))
         # print(sum(bin_acc_true) / len(bin_acc_true))
-        print(sum(in_range) / len(in_range))
+        # print(f"ACCURACY : {sum(in_range) / len(in_range)}")
         # print(f"RECALL   : {sum(recalls) / len(recalls)}")
         # print(f"PRECISION: {sum(precisions) / len(precisions)}\n")
 
 
 if __name__ == "__main__":
     dataset = load_from_disk(SAVE_PATH_DATASET)
-    custom_data_collator = custom_data_collator_function(ViTImageProcessor())
+    custom_data_collator = CustomViTRegressor.custom_data_collator_function()
 
     val_loader = DataLoader(dataset["test"], batch_size=BATCH_SIZE, collate_fn=custom_data_collator)
 
     device = 'cuda'
-    print("FOR SUPER COMPUTER TRAINED MODEL")
-    model = CustomViTRegressor()
-    model.update_model_from_checkpoint("13")
-    model.to(device)
-    main(model, val_loader)
-    print("################################################\n\n")
+    # print("FOR SUPER COMPUTER TRAINED MODEL")
+    # model = CustomViTRegressor()
+    # model.update_model_from_checkpoint("13")
+    # model.to(device)
+    # main(model, val_loader)
+    # print("################################################\n\n")
 
     #
-    print("FOR OUR MODEL TRAINED ON OUR NEW LOSS FUNCTION:")
-    model = CustomViTRegressor()
-    model.update_model_from_checkpoint("newloss_2")
+    # for i in range(20):
+    i =19
+    start = time.time()
+    base_dir = f"{WORKING_DIR}/vit/smash/balanced_no_shuffle_mse_loss"
+    print(f"FOR {i} EPOCHS")
+    model = CustomViTRegressor(base_dir=base_dir, base_filename=f"{base_dir}/checkpoints")
+    model.update_model_from_checkpoint(f"{i}")
     model.to(device)
-    main(model, val_loader)
+    main(model, val_loader, i)
+    print(f"Time Elapse: {time.time() - start}")
     print("################################################\n\n")
 
-    print("FOR OUR VGG MODEL:")
-
-    dataset = load_from_disk(SAVE_PATH_DATASET)
-    custom_data_collator = vgg_collator(CustomImageProcessor())
-
-    val_loader = DataLoader(dataset["test"], batch_size=BATCH_SIZE, collate_fn=custom_data_collator)
-
-    model = CustomSimpleImageRegressor()
-    model.update_model_from_checkpoint("newloss_2")
-    model.to(device)
-    main(model, val_loader)
+    # print("FOR OUR VGG MODEL:")
+    #
+    # dataset = load_from_disk(SAVE_PATH_DATASET)
+    # custom_data_collator = vgg_collator(CustomImageProcessor())
+    #
+    # val_loader = DataLoader(dataset["test"], batch_size=BATCH_SIZE, collate_fn=custom_data_collator)
+    #
+    # model = CustomSimpleImageRegressor()
+    # model.update_model_from_checkpoint("newloss_2")
+    # model.to(device)
+    # main(model, val_loader)
