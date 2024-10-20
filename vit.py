@@ -138,6 +138,7 @@ def _train(model,
     total_batches = 0
 
     vl = []
+    print(f"Batches in Epoch: {len(train_loader)}")
     for epoch in range(num_epochs_to_train):
         # GETTING EPOCH NUMBER
         if not os.path.isfile(EPOCH_FILE):
