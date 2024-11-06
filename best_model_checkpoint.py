@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from vit import CombinedDifferentiableLoss
 
 
 class BestModelCheckpoint:
@@ -19,7 +20,7 @@ class BestModelCheckpoint:
     def run_tests(self):
         checkpoints = (file for file in os.listdir(self.model_checkpoints_folder)
                        if os.path.isfile(os.path.join(self.model_checkpoints_folder, file)))
-        checkpoints = sorted(checkpoints)
+        checkpoints = sorted(checkpoints, key=int)
         validation_losses = []
         print("Starting validation testing on all checkpoints")
         print(f"batches per checkpoint: {len(self.validation_loader)}")
@@ -38,9 +39,11 @@ class BestModelCheckpoint:
                 validation_losses.append((checkpoint, val))
 
 
-        with open(f"{self.validation_losses_outfile}", "w") as f:
-            for val_loss in validation_losses:
-                f.write(str(val_loss) + "\n")
+        # with open(f"{self.validation_losses_outfile}", "w") as f:
+        #     for val_loss in validation_losses:
+        #         f.write(str(val_loss) + "\n")
+        for val_loss in validation_losses:
+            print(str(val_loss) + "\n")
 
 
 if __name__ == "__main__":
@@ -55,9 +58,9 @@ if __name__ == "__main__":
     custom_data_collator = CustomViTRegressor.custom_data_collator_function()
     val_loader = DataLoader(dataset["validation"], batch_size=32, collate_fn=custom_data_collator)
     bmc = BestModelCheckpoint(model_class=CustomViTRegressor,
-                              model_checkpoints_folder="/home/thomas/PycharmProjects/SMASH_AI/vit/smash/balanced_no_shuffle_mse_loss/checkpoints",
+                              model_checkpoints_folder="/home/thomas/PycharmProjects/SMASH_AI/vit/smash/balanced_every_iter_16_batch/checkpoints",
                               validation_loader=val_loader,
-                              objective=torch.nn.MSELoss(),
-                              validation_losses_outfile="/home/thomas/PycharmProjects/SMASH_AI/vit/smash/balanced_no_shuffle_mse_loss/val_losses.txt",
+                              objective=CombinedDifferentiableLoss(),
+                              validation_losses_outfile="/home/thomas/PycharmProjects/SMASH_AI/vit/smash/balanced_every_iter_16_batch/val_losses.txt",
                               )
     bmc.run_tests()
