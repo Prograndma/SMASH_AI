@@ -9,9 +9,7 @@ import numpy as np
 import torch.optim as optim
 import os
 import time
-
-WORKING_DIR = "/home/thomas/PycharmProjects/SMASH_AI"
-# WORKING_DIR = "/home/thomasvc/compute/SMASH_AI"
+from my_secrets import WORKING_DIR
 
 BATCH_SIZE = 32
 THRESHOLD = 50
@@ -33,7 +31,7 @@ elif WHICH_GAME == "kart":
 else:
     raise Exception("Choose a valid game")
 
-VIT_BASE_DIR = f"{WORKING_DIR}/vit/{WHICH_GAME}/{DATASET_TYPE}_no_shuffle_mse_loss"
+VIT_BASE_DIR = f"{WORKING_DIR}/vit/{WHICH_GAME}/{DATASET_TYPE}_no_shuffle_differentiable_loss"
 VIT_BASE_FILENAME = f"{VIT_BASE_DIR}/checkpoints"
 SAVE_PATH_DATASET = f"{WORKING_DIR}/dataset/{WHICH_GAME}/{DATASET_TYPE}"
 
@@ -65,7 +63,7 @@ def parse_args():
     parser.add_argument(
         "--max_train_steps",
         type=int,
-        default=20,
+        default=4,
         help="Total number of training steps to perform.  If provided, overrides num_train_epochs.",
     )
     parser.add_argument(
@@ -122,7 +120,33 @@ class CombinedLoss(nn.Module):
         self.mse = torch.nn.MSELoss()
 
     def forward(self, inp, target):
-        return self.cross_loss(inp[:12], target[:12]) + self.mse(inp[12:], target[12:])
+        cross = self.cross_loss(inp[:12], target[:12])
+        mse = self.mse(inp[12:], target[12:])
+        loss = cross + mse
+        return loss
+
+
+class CombinedDifferentiableLoss(nn.Module):
+    def __init__(self, device="cuda"):
+        super(CombinedDifferentiableLoss, self).__init__()
+        self.bce_loss = nn.BCEWithLogitsLoss()
+        self.mse_loss = nn.MSELoss()
+        self.device = device
+        self.binary_mask = torch.tensor([1] * 12 + [0] * 6, dtype=torch.float32, device=self.device)
+        self.continuous_mask = torch.tensor([0] * 12 + [1] * 6, dtype=torch.float32, device=self.device)
+
+    def forward(self, predictions, targets):
+        # Calculate the binary and continuous losses. We pass in the masked values to do the proper type of loss.
+        binary_loss = self.bce_loss(predictions * self.binary_mask, targets * self.binary_mask)
+        continuous_loss = self.mse_loss(predictions * self.continuous_mask, targets * self.continuous_mask)
+
+        # binary_loss = self.bce_loss(predictions, targets)
+        # continuous_loss = self.mse_loss(predictions, targets)
+
+
+        # Combine the losses
+        total_loss = binary_loss + continuous_loss
+        return total_loss
 
 
 def _train(model,
@@ -132,6 +156,7 @@ def _train(model,
            train_loader,
            val_loader,
            optimizer,
+           scheduler,
            objective,
            device='cuda'):
     total_epochs = 0
@@ -139,6 +164,14 @@ def _train(model,
 
     vl = []
     print(f"Batches in Epoch: {len(train_loader)}")
+    if os.path.isfile(EPOCH_FILE):
+        with open(f"{EPOCH_FILE}", "r") as f:
+            for line in f:
+                total_epochs = int(line.strip())
+                break
+            if total_epochs > 0:
+                model.update_model_from_checkpoint(f"{total_epochs - 1}")
+                print(f"LOADED MODEL FROM CHECKPOINT {total_epochs - 1}")
     for epoch in range(num_epochs_to_train):
         # GETTING EPOCH NUMBER
         if not os.path.isfile(EPOCH_FILE):
@@ -149,8 +182,6 @@ def _train(model,
                 for line in f:
                     total_epochs = int(line.strip())
                     break
-                model.update_model_from_checkpoint(f"{total_epochs - 1}")
-                print(f"LOADED MODEL FROM CHECKPOINT {total_epochs - 1}")
 
         # DO AN EPOCH
         batch_losses = []
@@ -169,7 +200,7 @@ def _train(model,
                     validation_loss_values.append((total_batches, val))
                     vl = []
                 print(f"Just finished testing against validation set. It took {time.time() - start}")
-            if total_batches % 156 == 0:
+            if total_batches % (len(train_loader) // 10) == 0:
                 print(f"Just did {total_batches} batches")  # , end=" | | ")
                 # vl = []
                 # with torch.no_grad():
@@ -193,7 +224,7 @@ def _train(model,
             del loss
 
             total_batches += 1
-
+        scheduler.step()
         # CHECKPOINT MODEL
         model.save(total_epochs)
 
@@ -292,15 +323,15 @@ def main(args):
     losses = []
     val_losses = []
 
-    optimizer = optim.Adam(model.parameters(), lr=1e-6)
+    optimizer = optim.Adam(model.parameters(), lr=1e-5)
+    scheduler = optim.lr_scheduler.LinearLR(optimizer, total_iters=args.max_train_steps)
 
-    objective = torch.nn.MSELoss()
+    # objective = torch.nn.MSELoss()
     # objective = torch.nn.CrossEntropyLoss()
-    # TODO: Is the issues with the Nan loss values due to this?
-    # objective = CombinedLoss()
+    objective = CombinedDifferentiableLoss(device=device)
 
     _train(model, args.max_train_steps, losses, val_losses, train_loader,
-           val_loader, optimizer, objective, device=device)
+           val_loader, optimizer, scheduler, objective, device=device)
 
 
 if __name__ == "__main__":
