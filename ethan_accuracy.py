@@ -1,14 +1,10 @@
 from datasets import load_from_disk
 import torch
-from transformers import ViTImageProcessor
 from torch.utils.data import DataLoader
 from custom_vit_regressor import CustomViTRegressor
 import time
-from vgg import CustomSimpleImageRegressor
-from vgg import custom_data_collator_function as vgg_collator
-from custom_image_processor import CustomImageProcessor
+from my_secrets import WORKING_DIR
 
-WORKING_DIR = "/home/thomas/PycharmProjects/SMASH_AI"
 WHAT_WE_WORKING_ON = "smash/balanced"
 SAVE_PATH_DATASET = f"{WORKING_DIR}/dataset/{WHAT_WE_WORKING_ON}"
 
@@ -107,11 +103,19 @@ def acc_check(model, dataloader, threshold):
 
 
 def main(model, data_loader, name=None):
-    threshes = [.05, .1, .11, .12, .13, .14, .15, .20, .25, .30, .35]
+    threshes = [.1, .11, .12, .13, .14, .15, .20, .25, .30, .35]
+    # threshes = [.05, .06, .07, .08, .09, .1,.1, .11, .12, .13, .14, .15, .16, .17, .18, .19, .20, .22,  .25, .27, .30, .33, .35, .4, .5]
+    # threshes = [.08, .09, .1, .11, .12,]
+    # threshes = [.005, .01, .02, .03, .04]
+    # threshes = [.005, .01, .02, .03, .04, .05, .06, .07, .08, .09, .1,.1, .11, .12, .13, .14, .15, .16, .17, .18, .19, .20, .22,  .25, .27, .30, .33, .35, .4, .5]
+    # threshes = [.10, .14, .15, .18]
     # threshes = [.14]
     print("Epochs Trained, Threshold, Recall, Precision")
     for threshold in threshes:
         bin_acc_true, bin_acc, in_range, recalls, precisions = acc_check(model, data_loader, threshold)
+        if len(recalls) == 0 or len(precisions) == 0:
+            print("DIVIDE BY ZERO???")
+            continue
         print(f"{i}, {threshold}, {sum(recalls) / len(recalls)}, {sum(precisions) / len(precisions)}")
         # print(f"FOR A THRESHOLD OF {threshold}")
         # print(sum(bin_acc) / len(bin_acc))
@@ -136,17 +140,17 @@ if __name__ == "__main__":
     # print("################################################\n\n")
 
     #
-    # for i in range(20):
-    i =19
-    start = time.time()
-    base_dir = f"{WORKING_DIR}/vit/smash/balanced_no_shuffle_mse_loss"
-    print(f"FOR {i} EPOCHS")
-    model = CustomViTRegressor(base_dir=base_dir, base_filename=f"{base_dir}/checkpoints")
-    model.update_model_from_checkpoint(f"{i}")
-    model.to(device)
-    main(model, val_loader, i)
-    print(f"Time Elapse: {time.time() - start}")
-    print("################################################\n\n")
+    for i in range(3):
+    # i = 14
+        start = time.time()
+        base_dir = f"{WORKING_DIR}/vit/smash/balanced_no_shuffle_differentiable_loss"
+        print(f"FOR {i} EPOCHS")
+        model = CustomViTRegressor(base_dir=base_dir, base_filename=f"{base_dir}/checkpoints")
+        model.update_model_from_checkpoint(f"{i}")
+        model.to(device)
+        main(model, val_loader, i)
+        print(f"Time Elapse: {time.time() - start}")
+        print("################################################\n\n")
 
     # print("FOR OUR VGG MODEL:")
     #
