@@ -52,15 +52,15 @@ if __name__ == "__main__":
     import torch
     from torch.utils.data import DataLoader
 
-    dataset_path = "/home/thomas/PycharmProjects/SMASH_AI/dataset/smash/balanced"
+    dataset_path = "/home/thomas/PycharmProjects/SMASH_AI/dataset/smash/balanced_extended"
     dataset = load_from_disk(dataset_path)
 
     custom_data_collator = CustomViTRegressor.custom_data_collator_function()
     val_loader = DataLoader(dataset["validation"], batch_size=32, collate_fn=custom_data_collator)
     bmc = BestModelCheckpoint(model_class=CustomViTRegressor,
-                              model_checkpoints_folder="/home/thomas/PycharmProjects/SMASH_AI/vit/smash/balanced_every_iter_16_batch/checkpoints",
+                              model_checkpoints_folder="/home/thomas/PycharmProjects/SMASH_AI/vit/smash/balanced_every_iter_extended_CROSS_LOSS/checkpoints",
                               validation_loader=val_loader,
-                              objective=CombinedDifferentiableLoss(),
-                              validation_losses_outfile="/home/thomas/PycharmProjects/SMASH_AI/vit/smash/balanced_every_iter_16_batch/val_losses.txt",
+                              objective=torch.nn.MSELoss(),
+                              validation_losses_outfile="/home/thomas/PycharmProjects/SMASH_AI/vit/smash/balanced_every_iter_extended_CROSS_LOSS/val_losses.txt",
                               )
     bmc.run_tests()
