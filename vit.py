@@ -300,15 +300,15 @@ def main(args):
     if os.path.isdir(f"{SAVE_PATH_DATASET}/train"):
         dataset = load_from_disk(SAVE_PATH_DATASET)
         try:
-            model = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME)
+            model = CustomViTRegressor(VIT_BASE_FILENAME)
         except OSError:
-            model = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME, should_load_from_disk=False)
+            model = CustomViTRegressor(VIT_BASE_FILENAME, should_load_from_disk=False)
 
     else:
         dataset = load_dataset(HUGGING_FACE_DATASET_KEY)
         dataset = train_test_valid_split(dataset['train'], .15, .15)
         dataset.save_to_disk(SAVE_PATH_DATASET)
-        _ = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME, should_load_from_disk=False)
+        _ = CustomViTRegressor(VIT_BASE_FILENAME, should_load_from_disk=False)
         return
     device = "cuda"
 
