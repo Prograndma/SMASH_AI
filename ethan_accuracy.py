@@ -140,12 +140,12 @@ if __name__ == "__main__":
     # print("################################################\n\n")
 
     #
-    for i in range(3):
-    # i = 14
+    for i in range(6):
+    # i = 1
         start = time.time()
-        base_dir = f"{WORKING_DIR}/vit/smash/balanced_no_shuffle_differentiable_loss"
+        base_dir = f"{WORKING_DIR}/vit/smash/balanced_every_iter_extended_CROSS_LOSS"
         print(f"FOR {i} EPOCHS")
-        model = CustomViTRegressor(base_dir=base_dir, base_filename=f"{base_dir}/checkpoints")
+        model = CustomViTRegressor(base_filename=f"{base_dir}/checkpoints")
         model.update_model_from_checkpoint(f"{i}")
         model.to(device)
         main(model, val_loader, i)
