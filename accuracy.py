@@ -1,13 +1,7 @@
-from datasets import load_dataset, Dataset, load_from_disk
+from datasets import load_from_disk
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torchvision.models import VGG
-from torchvision import transforms
-from transformers import ViTImageProcessor
 from torch.utils.data import DataLoader
 
-from custom_image_processor import CustomImageProcessor
 from custom_vit_regressor import CustomViTRegressor
 
 
@@ -51,7 +45,7 @@ if __name__ == "__main__":
 
     device = 'cuda'
 
-    model = CustomViTRegressor(base_dir=None, base_filename=None)
+    model = CustomViTRegressor(base_filename=None)
     # model.update_model_from_checkpoint("newloss_0")
     model.update_model_from_checkpoint("6")
     model.to(device)
