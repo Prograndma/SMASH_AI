@@ -9,10 +9,10 @@ HUGGING_FACE_PRETRAINED_VIT = "google/vit-base-patch16-224-in21k"
 
 class CustomViTRegressor(nn.Module):
     """
-        base_dir should take into account which game is being trained on and which dataset is being used
         base_filename should be where the checkpoints of the model are/should be
     """
-    def __init__(self, base_dir, base_filename, should_load_from_disk=True):
+    def __init__(self, base_filename, should_load_from_disk=True):
+        self.threshold = None
         super(CustomViTRegressor, self).__init__()
         if should_load_from_disk:
             self.base_model = ViTModel.from_pretrained(f"{base_filename}/pretrained")
@@ -21,12 +21,25 @@ class CustomViTRegressor(nn.Module):
             self.base_model.save_pretrained(f"{base_filename}/pretrained")
         self.regressor = nn.Linear(self.base_model.config.hidden_size, 18)  # amount of controller inputs
         self.base_filename = base_filename
-        self.base_dir = base_dir
 
     def forward(self, x):
         features = self.base_model(x)
         predictions = self.regressor(features.pooler_output)
         return predictions
+
+    def set_threshold(self, threshold: float):
+        if threshold < 0.0 < 1.0:
+            raise Exception("Model's threshold must be between 0.0 and 1.0")
+        self.threshold = threshold
+
+    def play(self, image):
+        if self.threshold is None:
+            raise Exception("Model can not play without a set threshold! Please set the the threshold with the "
+                            ".set_threshold function")
+        with torch.no_grad():
+            features = self.base_model(image)
+            predictions = self.regressor(features.pooler_output)
+
 
     def saved_model_exists(self, checkpoint):
         if not os.path.exists(f"{self.base_filename}/{checkpoint}"):
