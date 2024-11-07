@@ -31,7 +31,7 @@ elif WHICH_GAME == "kart":
 else:
     raise Exception("Choose a valid game")
 
-VIT_BASE_DIR = f"{WORKING_DIR}/vit/{WHICH_GAME}/{DATASET_TYPE}_every_iter_extended"
+VIT_BASE_DIR = f"{WORKING_DIR}/vit/{WHICH_GAME}/{DATASET_TYPE}_every_iter_extended_CROSS_LOSS"
 VIT_BASE_FILENAME = f"{VIT_BASE_DIR}/checkpoints"
 SAVE_PATH_DATASET = f"{WORKING_DIR}/dataset/{WHICH_GAME}/{DATASET_TYPE}_extended"
 
@@ -41,15 +41,6 @@ elif WHICH_GAME == "kart":
     dataset_name = "mario_kart"
 else:
     raise Exception("Choose a valid game")
-
-if DATASET_TYPE == "full":
-    HUGGING_FACE_DATASET_KEY = f"tomc43841/public_{dataset_name}_full_dataset"
-elif DATASET_TYPE == "balanced":
-    HUGGING_FACE_DATASET_KEY = f"tomc43841/public_{dataset_name}_balanced_dataset"
-elif DATASET_TYPE == "medium":
-    HUGGING_FACE_DATASET_KEY = f"tomc43841/public_{dataset_name}_medium_dataset"
-else:
-    HUGGING_FACE_DATASET_KEY = f"tomc43841/public_{dataset_name}_little_dataset"
 
 
 EPOCH_FILE = f"{VIT_BASE_DIR}/epochs.txt"
@@ -63,7 +54,7 @@ def parse_args():
     parser.add_argument(
         "--max_train_steps",
         type=int,
-        default=4,
+        default=8,
         help="Total number of training steps to perform.  If provided, overrides num_train_epochs.",
     )
     parser.add_argument(
@@ -114,6 +105,9 @@ def _train(model, num_epochs_to_train, train_loader, val_loader, optimizer, sche
             with open(f"{EPOCH_FILE}", "r") as f:
                 for line in f:
                     total_epochs = int(line.strip())
+                    if total_epochs != 0:
+                        raise Exception("Picking up training from where it was left off is not yet supported! "
+                                        "Did you mean to specify a new VIT_BASE_DIR?")
                     break
 
         # DO AN EPOCH
@@ -123,7 +117,7 @@ def _train(model, num_epochs_to_train, train_loader, val_loader, optimizer, sche
         validation_losses = []
         training_losses = []
         for batch, (x, y_truth) in enumerate(train_loader):  # learn
-            if total_batches % (len(train_loader) // 10) == 0:
+            if total_batches % (len(train_loader) - 1) == 0 and total_batches != 0:
                 print(f"Just did {total_batches} batches")  # , end=" | | ")
                 with torch.no_grad():
                     temp_val = []
@@ -141,7 +135,7 @@ def _train(model, num_epochs_to_train, train_loader, val_loader, optimizer, sche
             loss = objective(y_hat, y_truth)
             loss.backward()
             batch_losses.append(loss.item())
-            if total_batches % (len(train_loader) // 10) == 0:
+            if total_batches % (len(train_loader) - 1) == 0and total_batches != 0:
                 training_losses.append( (total_batches, loss.item()) )
             optimizer.step()
             del loss
@@ -207,14 +201,14 @@ def main(args):
     if os.path.isdir(f"{SAVE_PATH_DATASET}/train"):
         dataset = load_from_disk(SAVE_PATH_DATASET)
         try:
-            model = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME)
+            model = CustomViTRegressor(VIT_BASE_FILENAME)
         except OSError:
-            model = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME, should_load_from_disk=False)
+            model = CustomViTRegressor(VIT_BASE_FILENAME, should_load_from_disk=False)
 
     else:
         constructor = DatasetConstructor(which_game=WHICH_GAME, dataset_type=DATASET_TYPE, use_suffixes=True)
         constructor.download_dataset()
-        _ = CustomViTRegressor(VIT_BASE_DIR, VIT_BASE_FILENAME, should_load_from_disk=False)
+        _ = CustomViTRegressor(VIT_BASE_FILENAME, should_load_from_disk=False)
         return
     device = "cuda"
 
@@ -229,7 +223,9 @@ def main(args):
     optimizer = optim.Adam(model.parameters(), lr=1e-5)
     scheduler = optim.lr_scheduler.LinearLR(optimizer, total_iters=args.max_train_steps)
 
-    objective = CombinedDifferentiableLoss(device=device)
+    # objective = CombinedDifferentiableLoss(device=device)
+    # objective = torch.nn.MSELoss()
+    objective = torch.nn.CrossEntropyLoss()
 
     _train(model, args.max_train_steps, train_loader, val_loader, optimizer, scheduler, objective, device=device)
 
