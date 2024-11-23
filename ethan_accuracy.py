@@ -140,10 +140,10 @@ if __name__ == "__main__":
     # print("################################################\n\n")
 
     #
-    for i in range(6):
+    for i in range(8):
     # i = 1
         start = time.time()
-        base_dir = f"{WORKING_DIR}/vit/smash/balanced_every_iter_extended_CROSS_LOSS"
+        base_dir = f"{WORKING_DIR}/vit/smash/balanced_every_iter_extended_MSE"
         print(f"FOR {i} EPOCHS")
         model = CustomViTRegressor(base_filename=f"{base_dir}/checkpoints")
         model.update_model_from_checkpoint(f"{i}")
