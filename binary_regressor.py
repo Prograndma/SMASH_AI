@@ -81,7 +81,6 @@ class CustomBinaryImageRegressor(nn.Module):
             nn.Linear(4096, 1))
 
         self.base_filename = base_filename
-        self.base_dir = base_dir
 
     def forward(self, x):
         out = self.layer1(x)
