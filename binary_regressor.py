@@ -1,16 +1,16 @@
 from torch import nn
 import os
 import torch
+from my_secrets import WORKING_DIR
 
 
-WORKING_DIR = "/home/thomas/PycharmProjects/SMASH_AI"
 WHAT_WE_WORKING_ON = "full"
 VGG_BASE_DIR = f"{WORKING_DIR}/vgg_binary/{WHAT_WE_WORKING_ON}"
 VGG_BASE_FILENAME = f"{VGG_BASE_DIR}/checkpoints"
 
 
 class CustomBinaryImageRegressor(nn.Module):
-    def __init__(self, base_filename=VGG_BASE_FILENAME, base_dir=VGG_BASE_DIR):
+    def __init__(self, base_filename=VGG_BASE_FILENAME):
         super(CustomBinaryImageRegressor, self).__init__()
         self.layer1 = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
@@ -108,11 +108,11 @@ class CustomBinaryImageRegressor(nn.Module):
             return False
         return True
 
-    def update_model_from_checkpoint(self, latest=True, checkpoint=None):
+    def update_model_from_checkpoint(self, checkpoint):
         if not self.saved_model_exists():
             return "no saved model exists"
 
-        path = f"{self.base_filename}/1"
+        path = f"{self.base_filename}/{checkpoint}"
         # if latest:
         #     path = self.get_last_file()
         # else:
@@ -125,33 +125,6 @@ class CustomBinaryImageRegressor(nn.Module):
             raise Exception(f"Model does not exist! {path}")
         loaded = torch.load(path)
         return self.load_state_dict(loaded)
-    #
-    # def get_last_file(self):
-    #     checkpoint_paths = os.listdir(self.base_dir)
-    #     trimmed_paths = []
-    #     for path in checkpoint_paths:
-    #         trimmed_paths.append(path[16:])
-    #     if '' in trimmed_paths:
-    #         trimmed_paths.remove('')
-    #     if len(trimmed_paths) == 0:
-    #         return self.base_filename
-    #
-    #     epochs = []
-    #     for epoch in trimmed_paths:
-    #         epochs.append(int(epoch))
-    #     epochs.sort()
-    #     largest_checkpoint = epochs[-1]
-    #     return f"{self.base_filename}_epoch{largest_checkpoint}"
-
-    # def get_unique_filename(self, epoch):
-    #     if not os.path.exists(self.base_filename):
-    #         return self.base_filename
-    #     #               i.e. "save/path/checkpoint_epoch5
-    #     starting_filename = f"{self.base_filename}_epoch{epoch}"
-    #
-    #     if os.path.exists(starting_filename):
-    #         raise Exception("Already saved file with that epoch")
-    #     return starting_filename
 
     def save(self, epoch):
         if not os.path.isdir(self.base_filename):
