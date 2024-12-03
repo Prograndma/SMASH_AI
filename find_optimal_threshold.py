@@ -24,7 +24,6 @@ def get_butt_names(culled):
     return CULLED_BUTT_NAMES
 
 
-
 class FindOptimalThreshold:
     def __init__(self, name_index, culled):
         self.targets = []
@@ -97,7 +96,6 @@ class FindOptimalThreshold:
             raise Exception("Didn't find a good f1!")
         return best_threshold, best_precision, best_recall, previous_f1
 
-
     def find_threshold_and_performance(self):
         if self.reordered_targets is None or self.sorted_guesses is None or self.from_the_left is None or self.from_the_right is None:
             self._reorganize()
@@ -138,12 +136,11 @@ class FindOptimalThreshold:
         return optimal_threshold, precision, recall, f1, accuracy, specificity
 
 
-
 def acc_check(model, dataloader, device, num_butts):
     culled = False
     if num_butts < NUM_BUTTS:
         culled = True
-    threshold_finders: list[FindOptimalThreshold] =  [FindOptimalThreshold(i, culled) for i in range(num_butts)]
+    threshold_finders: list[FindOptimalThreshold] = [FindOptimalThreshold(i, culled) for i in range(num_butts)]
     continuous_variable_errors = []
     print("|###########|")
     print("|", end="")
@@ -176,6 +173,7 @@ def acc_check(model, dataloader, device, num_butts):
     results = []
     optimized_precision = []
     optimized_recall = []
+    optimized_thresholds = []
     print("RESULTS")
     for i, butt_name in enumerate(get_butt_names(culled)):
         if i < num_butts:
@@ -200,13 +198,14 @@ def acc_check(model, dataloader, device, num_butts):
                   f"optimized f1 precision: {optimized_f1_precision}\n"
                   f"optimized f1 recall: {optimized_f1_recall}\n"
                   f"optimized f1: {optimized_f1}\n")
+            optimized_thresholds.append(optimized_f1_threshold)
             results.append(precision)
             optimized_recall.append(optimized_f1_recall)
             optimized_precision.append(optimized_f1_precision)
         else:
             print(f"{butt_name.upper()}: average error = {means[i - num_butts] * 255}")
             results.append(means[i - num_butts] * 255)
-    return results, optimized_precision, optimized_recall
+    return results, optimized_precision, optimized_recall, optimized_thresholds
 
 
 def parse_args():
@@ -227,7 +226,7 @@ def parse_args():
     parser.add_argument(
         "--model_path",
         type=str,
-        help="The folder, after the model_type, that hold checkpoints"
+        help="The folder, after the model_type, that holds checkpoints"
     )
     parser.add_argument(
         "--first_checkpoint",
@@ -254,6 +253,7 @@ def main():
     args = parse_args()
     # TODO: FIX CULLED
     # args.culled = False
+    args.culled = True
     dataset = load_from_disk(SAVE_PATH_DATASET)
     my_butts = NUM_BUTTS
     if args.culled:
@@ -284,7 +284,6 @@ def main():
         continuous_errors += f"{butt_name}, "
     continuous_errors += f"{get_butt_names(args.culled)[-1]}\n"
 
-
     for i in range(args.first_checkpoint, args.last_checkpoint + 1):
         start = time.time()
         base_dir = f"{WORKING_DIR}/{args.model_type}/{args.model_path}"
@@ -292,7 +291,8 @@ def main():
         model = model_constructor(base_filename=f"{base_dir}/checkpoints", cull=args.culled)
         model.update_model_from_checkpoint(f"{i}")
         model.to(device)
-        result, opt_precision, opt_recall = acc_check(model, val_loader, device, my_butts)
+        result, opt_precision, opt_recall, optimized_thresholds = acc_check(model, val_loader, device, my_butts)
+        model.set_threshold(optimized_thresholds, i)
         binary_precisions += f"{i}, "
         continuous_errors += f"{i}, "
         optimized_binary_precisions += f"{i}, "
@@ -313,7 +313,6 @@ def main():
         for thing in result[my_butts: NUM_CONTINUOUS + my_butts - 1]:
             continuous_errors += f"{thing}, "
         continuous_errors += f"{result[-1]}\n"
-
         print(f"Time Elapse: {time.time() - start}")
         print("################################################\n\n")
 
