@@ -10,10 +10,11 @@ from my_secrets import WORKING_DIR
 
 class PlayGame:
     def __init__(self, discriminator, model, discriminator_image_processor, model_image_processor,
-                 outfile, image_source, use_same_processor_for_discriminator_and_model=True):
+                 outfile, image_source, device, use_same_processor_for_discriminator_and_model=True):
         self.discriminator = discriminator
         self.model = model
         self.outfile = outfile
+        self.device = device
         self.image_source = image_source
         self.model_image_processor = model_image_processor
         self.discriminator_image_processor = discriminator_image_processor
@@ -25,13 +26,13 @@ class PlayGame:
             frames_processed += 1
 
             input_image = self.image_source.get()
-            discriminator_input_image = self.discriminator_image_processor.preprocess(input_image)
-            should_press_buttons = self.discriminator.play(input_image)
+            discriminator_input_image = self.discriminator_image_processor.preprocess(input_image, return_tensors="pt").to(self.device)
+            should_press_buttons = self.discriminator.play(discriminator_input_image)
             if should_press_buttons:
                 if self.use_same_processor_for_discriminator_and_model:
                     model_input_image = discriminator_input_image
                 else:
-                    model_input_image = self.model_image_processor.preprocess(input_image)
+                    model_input_image = self.model_image_processor.preprocess(input_image, return_tensors="pt").to(self.device)
                 buttons_to_press = self.get_buttons_pressed(model_input_image)
 
     def get_buttons_pressed(self, processed_input_image):
