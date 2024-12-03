@@ -3,6 +3,7 @@ import torch.nn as nn
 from transformers import ViTModel, ViTImageProcessor
 import os
 
+
 HUGGING_FACE_PRETRAINED_VIT = "google/vit-base-patch16-224-in21k"
 
 
@@ -10,7 +11,6 @@ class CustomViTRegressor(nn.Module):
     """
         base_filename should be where the checkpoints of the model are/should be
     """
-
     def __init__(self, base_filename, cull, should_load_from_disk=True):
         self.thresholds = {}
         self.butt_names = {}
@@ -66,8 +66,8 @@ class CustomViTRegressor(nn.Module):
             butt = self.butt_names[i]
             output = predictions[i].item()
             butt_presses[butt] = output
-            if butt in ["XAxis", "YAxis", "CXAxis", "CYAxis"]:
-                butt_presses[butt] *= 255
+            # if butt in ["XAxis", "YAxis", "CXAxis", "CYAxis"]:
+            butt_presses[butt] *= 255
 
         for un_butt in self.all_butts:
             curr_butt = self.all_butts[un_butt]
