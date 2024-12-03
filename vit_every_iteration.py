@@ -190,7 +190,13 @@ def main(args):
         constructor.download_dataset()
         _ = CustomViTRegressor(VIT_BASE_FILENAME, cull=CULL, should_load_from_disk=False)
         return
-    device = "cuda"
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        print("Using GPU")
+    else:
+        device = torch.device("cpu")
+        print("Using CPU")
+        raise Exception("You gotta use CUDA, you just gotta")
 
     if CULL:
         dataset = dataset.remove_columns(["Y", "DPadUp", "DPadDown", "DPadLeft", "DPadRight", "L", "R"])
