@@ -300,9 +300,9 @@ def main(args):
     if os.path.isdir(f"{SAVE_PATH_DATASET}/train"):
         dataset = load_from_disk(SAVE_PATH_DATASET)
         try:
-            model = CustomViTRegressor(VIT_BASE_FILENAME)
+            model = CustomViTRegressor(VIT_BASE_FILENAME, cull=True)
         except OSError:
-            model = CustomViTRegressor(VIT_BASE_FILENAME, should_load_from_disk=False)
+            model = CustomViTRegressor(VIT_BASE_FILENAME, should_load_from_disk=False, cull=True)
 
     else:
         dataset = load_dataset(HUGGING_FACE_DATASET_KEY)
