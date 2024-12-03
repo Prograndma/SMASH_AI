@@ -1,7 +1,8 @@
-Pillow==10.1.0
+Pillow
 datasets==2.15.0
 numpy==1.26.2
 pandas==2.1.4
-torch==2.1.1
-torchvision==0.16.1
+torch
+torchvision
 transformers==4.38.0
+fastapi[standard]
